@@ -1,0 +1,9 @@
+# One post. `this:` names it, so publishing again updates this post
+# rather than minting a new one. `?variables` would mint a fresh entity
+# on every run.
+
+post!:
+  this: id:post-hello
+  title: Hello from GitHub
+  body: !include/text ./hello.md
+  cover: !include/asset ../assets/cover.png

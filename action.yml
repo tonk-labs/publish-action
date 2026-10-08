@@ -1,0 +1,81 @@
+name: Publish to Tonk
+description: >-
+  Assert a directory of tonk notation documents (and the assets they
+  include) into a Tonk space, then push. Re-publishing an unchanged
+  directory is a no-op.
+author: Tonk Labs
+branding:
+  icon: upload-cloud
+  color: green
+
+inputs:
+  invite:
+    description: >-
+      Agent connection link for the space, from "connect agent" in Tonk.
+      It carries the connection's key and its scoped grants, so pass it
+      from a secret, e.g. `secrets.TONK_INVITE`.
+    required: true
+  directory:
+    description: >-
+      Directory of `*.yaml` / `*.yml` notation documents, relative to the
+      workspace. Documents are evaluated in path order; hidden entries are
+      skipped.
+    required: false
+    default: tonk
+  branch:
+    description: >-
+      Branch of the space to publish to. Agent connections are granted
+      `main` only today, so any other value is refused before anything runs.
+    required: false
+    default: main
+  attempts:
+    description: >-
+      Push attempts before giving up when another writer keeps moving the
+      branch. Each retry pulls (merging both sides) before pushing again.
+    required: false
+    default: "5"
+  dry-run:
+    description: Evaluate every document without committing or pushing.
+    required: false
+    default: "false"
+  agent-name:
+    description: >-
+      Label this connection reports in the space owner's settings.
+      Defaults to `GitHub Actions (<owner>/<repo>)`.
+    required: false
+    default: ""
+  tonk-version:
+    description: >-
+      tonk CLI to install: `latest`, `staging` (the pre-release channel), or
+      a release tag, such as `v0.7.0` or a pinned build's `tonk-<hash>`.
+    required: false
+    default: latest
+
+outputs:
+  changed:
+    description: "`true` when the documents asserted something the space did not already hold."
+    value: ${{ steps.publish.outputs.changed }}
+  pushed:
+    description: "`true` when the branch on the remote advanced."
+    value: ${{ steps.publish.outputs.pushed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install tonk
+      shell: bash
+      env:
+        TONK_VERSION: ${{ inputs.tonk-version }}
+      run: '"$GITHUB_ACTION_PATH/scripts/install.sh"'
+
+    - name: Publish
+      id: publish
+      shell: bash
+      env:
+        TONK_INVITE: ${{ inputs.invite }}
+        PUBLISH_DIRECTORY: ${{ inputs.directory }}
+        PUBLISH_BRANCH: ${{ inputs.branch }}
+        PUBLISH_ATTEMPTS: ${{ inputs.attempts }}
+        PUBLISH_DRY_RUN: ${{ inputs.dry-run }}
+        PUBLISH_AGENT_NAME: ${{ inputs.agent-name }}
+      run: '"$GITHUB_ACTION_PATH/scripts/publish.sh"'

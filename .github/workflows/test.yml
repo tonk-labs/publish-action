@@ -1,0 +1,74 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # A pinned tonk build with multi-file `eval` and `!include/asset`, until
+  # a release carries them; then `staging` or `latest`.
+  TONK_VERSION: tonk-kdp1zi8hiz1j
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+
+  # Validate the example against a local space, without an invite: the
+  # documents parse, analyze and commit, and publishing them twice
+  # changes nothing the second time.
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tonk
+        run: scripts/install.sh
+      - name: Publish the example to a local space
+        env:
+          XDG_DATA_HOME: ${{ runner.temp }}/tonk-data
+        run: |
+          mkdir -p "$RUNNER_TEMP/space" && cd "$RUNNER_TEMP/space"
+          tonk space new example
+          cd "$GITHUB_WORKSPACE/example/tonk"
+          tonk --space example eval 00-schema.yaml posts/*.yaml --json --quiet >"$RUNNER_TEMP/first.json"
+          tonk --space example eval 00-schema.yaml posts/*.yaml --json --quiet >"$RUNNER_TEMP/second.json"
+          cd "$RUNNER_TEMP/space"
+          jq -e '.revision_before != .revision_after' "$RUNNER_TEMP/first.json"
+          jq -e '.revision_before == .revision_after' "$RUNNER_TEMP/second.json"
+          tonk render id:post-hello@post | grep -q 'Hello from GitHub'
+
+  # The action end to end, against a real space. Runs only where a
+  # `TONK_TEST_INVITE` secret is configured.
+  action:
+    runs-on: ubuntu-latest
+    concurrency: publish-action-e2e
+    env:
+      HAS_INVITE: ${{ secrets.TONK_TEST_INVITE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.HAS_INVITE == 'true'
+      - id: first
+        if: env.HAS_INVITE == 'true'
+        uses: ./
+        with:
+          invite: ${{ secrets.TONK_TEST_INVITE }}
+          directory: example/tonk
+          tonk-version: ${{ env.TONK_VERSION }}
+      - id: second
+        if: env.HAS_INVITE == 'true'
+        uses: ./
+        with:
+          invite: ${{ secrets.TONK_TEST_INVITE }}
+          directory: example/tonk
+          tonk-version: ${{ env.TONK_VERSION }}
+      - name: The second publish is a no-op
+        if: env.HAS_INVITE == 'true'
+        run: test "${{ steps.second.outputs.changed }}" = false && test "${{ steps.second.outputs.pushed }}" = false

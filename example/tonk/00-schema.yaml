@@ -1,0 +1,38 @@
+# The vocabulary the posts below are written in. Documents run in path
+# order, so this file (`00-…`) lands before the ones that use it.
+
+attribute!: &post-title
+  description: Title of a post
+  the: xyz.example.post/title
+  as: text
+  cardinality: one
+
+attribute!: &post-body
+  description: Markdown body of a post
+  the: xyz.example.post/body
+  as: text
+  cardinality: one
+
+attribute!: &post-cover
+  description: Cover image of a post, an asset reference
+  the: xyz.example.post/cover
+  as: entity
+  cardinality: one
+
+concept!: &post
+  description: A published post
+  with:
+    title: post-title
+    body: post-body
+    cover: post-cover
+
+view!:
+  this: post
+  show:
+    title: "{title}"
+    ui: |
+      <article>
+        <h1>{title}</h1>
+        <tonk-display entity={cover} model=tonk:asset></tonk-display>
+        <tonk-prose readonly>{body}</tonk-prose>
+      </article>
